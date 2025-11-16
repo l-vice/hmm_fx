@@ -1,0 +1,171 @@
+---
+title: "Computational Finance (Part II): Assessing the Effectiveness of Hidden Markov Models in Algorithmic Trading"
+author: "LBK"
+date: "2025-06-30"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      position: left
+    number_sections: true
+    fig_caption: true
+    theme: flatly
+    highlight: tango
+    css: "wide_style.css"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 14,
+  fig.height = 8,
+  dpi = 150,
+  fig.align = "center"
+)
+setwd("D:/LUMSA/COMPUTATIONAL FINANCE/Part II Exam/EXAM/HTML")
+```
+
+# Introduction
+
+This report explores the application of **Hidden Markov Models (HMMs)** to regime detection in high-frequency EUR/USD data and evaluates their impact on algorithmic trading performance. The objective is to determine whether incorporating latent state information improves the profitability and stability of mean-reversion strategies.
+
+# Data and Preprocessing
+
+```{r}
+LoadLibraries <- function() {
+  require(tidyverse)
+  require(lubridate)
+  require(TTR)
+  require(mhsmm)
+  require(mstudentd)
+  require(gamlss)
+  require(zoo)
+  require(tseries)
+  require(PerformanceAnalytics)
+  require(patchwork)
+}
+LoadLibraries()
+load("objects_Rmd")
+head(FX, 10)
+```
+
+# Distributional Properties of Returns
+
+To assess the distributional behavior of major EUR-based currency pairs, we examine their standardized log returns.
+
+```{r fig.cap="Figure 1. Q-Q Plots of EUR Cross Returns", fig.width=12, fig.height=8}
+returns <- diff(log(FX))[-1, ]
+par(mfrow = c(2, 2))
+qqnorm(returns[, "EURCAD"], main = "Q-Q Plot: EURCAD", col = "steelblue"); qqline(returns[, "EURCAD"], col = "red")
+qqnorm(returns[, "EURGBP"], main = "Q-Q Plot: EURGBP", col = "steelblue"); qqline(returns[, "EURGBP"], col = "red")
+qqnorm(returns[, "EURJPY"], main = "Q-Q Plot: EURJPY", col = "steelblue"); qqline(returns[, "EURJPY"], col = "red")
+qqnorm(returns[, "EURUSD"], main = "Q-Q Plot: EURUSD", col = "steelblue"); qqline(returns[, "EURUSD"], col = "red")
+par(mfrow = c(1, 1))
+```
+
+These diagnostics indicate clear **non-normality** and **fat tails**, justifying the use of heavy-tailed emission distributions in the HMM framework.
+
+# Emission Distribution Specification
+
+The emission density of each hidden state is modeled using the **Student-t distribution**, parameterized as follows:
+
+$$
+f(y_t \mid S_t = j) = 
+\frac{\Gamma\left(\frac{\nu_j + 1}{2}\right)}{\sqrt{\nu_j \pi}\,\Gamma\left(\frac{\nu_j}{2}\right)\sigma_j}
+\left[1 + \frac{(y_t - \mu_j)^2}{\nu_j\sigma_j^2}\right]^{-\frac{\nu_j + 1}{2}}
+$$
+
+where \( \nu_j \) controls tail thickness. The Student-t distribution provides robustness to outliers and volatility clustering.
+
+# Model Configurations and Sojourn Distributions
+
+To evaluate different persistence dynamics, we estimate models under varying **sojourn distributions** and **state counts**:
+
+$$
+d_j \sim \begin{cases}
+\text{Poisson}(\lambda_j + s), & \text{(shifted Poisson)} \\
+\text{Gamma}(\alpha_j, \beta_j),\\
+\text{Geometric}(p_j),
+\end{cases}
+$$
+
+This yields 9 configurations (3 sojourns × 3 values of \(K \in \{2,3,4\}\)).
+
+```{r fig.cap="Figure 2. Comparison of Hidden States across K", fig.width=18, fig.height=10, out.width="100%"}
+candleplot.gamma.K2 + candleplot.gamma.K3 + candleplot.gamma.K4 +
+  plot_annotation(
+    title = "Hidden States for Gamma Sojourn Models (K = 2, 3, 4)",
+    theme = theme(plot.title = element_text(size = 16, face = "bold"))
+  )
+```
+
+# Regime Dynamics and Transition Probabilities
+
+We analyze persistence and regime-switching patterns. For a Markov chain with transition matrix \( A = [a_{ij}] \), the expected duration in state \( j \) is:
+
+$$
+E[D_j] = \frac{1}{1 - a_{jj}}
+$$
+
+```{r}
+print(summary.models)
+for (name in names(transitions)) {
+  cat("\n---", name, "---\n")
+  print(transitions[[name]])
+}
+```
+
+# Trading Strategy Implementation
+
+We embed the decoded HMM regimes into a **mean-reversion breakout strategy** operating on 5-minute EUR/USD data.
+
+### Entry Rules
+- Breakout trigger: close outside Bollinger Bands.
+- Entry at 61.8% Fibonacci retracement of breakout candle.
+- Trade direction aligned with SMA(200).
+- HMM filter applied to restrict trading to specific states.
+
+### Exit Rules
+- TP: mean reversion to SMA(20) or multiples thereof.
+- SL: fixed 100 pips as protection.
+
+```{r fig.cap="Figure 3. Trade Setup Example in MT5", fig.width=18, fig.height=10, out.width="100%"}
+knitr::include_graphics("MT5_trade_setup_example.png", error = FALSE)
+```
+
+# Performance Evaluation
+
+```{r}
+print(performance.summary)
+```
+
+```{r fig.cap="Figure 4. Equity Curve Comparison", fig.width=12, fig.height=8}
+equity.curve
+```
+
+# Discussion
+
+Integrating latent regime information significantly enhances strategy selectivity by filtering non-stationary periods. The geometric model (K=3) demonstrates strong persistence, clear volatility segmentation, and robust in-sample stability.
+
+# Conclusion and Future Work
+
+***Hidden Markov Models (HMMs)*** proved effective in identifying distinct latent market regimes within high-frequency EUR/USD data.  
+By uncovering hidden state transitions such as periods of stability, mean reversion, and directional movement, the model provided a structured probabilistic signal that enhanced decision-making in the algorithmic trading framework.
+
+The HMM acted as a state filter or a signal, classifying each market observation into one of three underlying regimes based on historical context.  
+This separation allowed the mean-reversion strategy to operate selectively, executing trades only when the inferred state corresponded to favorable market conditions such as State 1 or State 2, and suspending activity during unfavourable regimes such as trending or high-volatility State 3.
+
+Future work will focus on integrating real-time state filtering with the ***MetaTrader 5 (MT5)*** execution environment.  
+Each newly closed candle would be streamed from MT5 into R, where the fitted HMM dynamically classifies it into its most probable regime.  
+This live inference pipeline would allow the trading system to adapt continuously to evolving market structures, linking statistical state modeling with fully automated execution logic.
+ 
+---
+
+**Author:** Luka Bojovic  
+**Course:** Computational Finance II  
+**Institution:** LUMSA University  
+**Date:** 2025-06-30

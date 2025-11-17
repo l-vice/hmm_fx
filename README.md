@@ -51,6 +51,4 @@ Hamilton (1989). A New Approach to the Economic Analysis of Non-stationary Time 
 Author
 ------
 Luka Bojovic  
-Email: lukabojovic@gmail.com  
-LinkedIn: linkedin.com/in/lukabojovic  
-GitHub: github.com/lukabojovic
+Email: lbojovic2@gmail.com

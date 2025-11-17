@@ -6,6 +6,11 @@ Objective
 The goal of this project is to identify hidden volatility regimes in EUR-based currency pairs and analyze how these regimes affect a mean-reversion trading strategy. 
 The study combines financial econometrics, machine learning, and algorithmic trading logic to improve decision-making under regime shifts.
 
+Full Report
+------------
+The complete HTML analysis report can be viewed online here:  
+[View HTML Report](https://l-vice.github.io/hmm_fx/report/fp_2_hmm.html)
+
 Methodology
 ------------
 Model Framework:
